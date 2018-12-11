@@ -36,14 +36,10 @@ public:
 	void Sift(int);
 	void Match(int);
 	void Ransac();
-	bool findHomography(const vector<pair<VlSiftKeypoint, VlSiftKeypoint>> &, double []);
-	void Combine();
-	void Blending();
+	void Blending(int);
 private:
 	vector<Image> imgList;
-	vector<CImg<float>> displayImgs;
 	vector<pair<VlSiftKeypoint, VlSiftKeypoint>> match;
-	double transform[8];
 	CImg<float> resultImg;
 };
 

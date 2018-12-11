@@ -3,27 +3,30 @@
 
 #define NOCTAVES 3
 #define NLEVELS 7
-#define O_MIN  0
+#define O_MIN 0
 #define PEAK_THRESH 0.8
 #define EDGE_THRESH 10.0
 #define NN_DIST_RATIO_THR 0.8
 #define CONFIDENCE 0.995
-#define MAX_ITERS 2000
-#define REJECT_THRESH 3
+#define MAX_ITERS 20000
+#define REJECT_THRESH 1
+#define offset 0.86
 
 Stitch::Stitch(vector<string> srcList) {
 	LoadImg(srcList[0]);
 	Sift(0);
+	resultImg = imgList[0].img;
 	for (int current = 1; current < srcList.size(); current++) {
 		LoadImg(srcList[current]);
 		Sift(current);
 		Match(current);
+		Blending(current);
 	}
+	resultImg.save("stitchImg.bmp");
 }
 
 void Stitch::LoadImg(string src) {
 	CImg<float> temp(src.c_str());
-	displayImgs.push_back(temp);
 	imgList.push_back(Image(temp));
 }
 
@@ -47,6 +50,8 @@ void Stitch::Sift(int current) {
 	vl_sift_set_edge_thresh(SiftFilt, EDGE_THRESH);
 
 	//计算每层中的关键点
+	CImg<unsigned char> display;
+	display.append(imgList[current].img);
 	if (vl_sift_process_first_octave(SiftFilt, ImageData) != VL_ERR_EOF) {
 		do {
 			// 检测关键点
@@ -55,7 +60,7 @@ void Stitch::Sift(int current) {
 			for (int i = 0; i < SiftFilt->nkeys; i++) {
 				VlSiftKeypoint keyPoint = SiftFilt->keys[i];
 				unsigned int RED[] = { 255, 0, 0 };
-				displayImgs[current].draw_circle((int)keyPoint.x, (int)keyPoint.y, (int)keyPoint.sigma / 2, RED);
+				display.draw_circle((int)keyPoint.x, (int)keyPoint.y, 1, RED);
 				
 				double angles[4];
 				// 计算特征点的主方向
@@ -70,7 +75,7 @@ void Stitch::Sift(int current) {
 	vl_sift_delete(SiftFilt);
 	cout << "SIFT Done\n";
 
-	displayImgs[current].display("sift");
+	display.display("sift");
 }
 
 void Stitch::Match(int current) {
@@ -110,107 +115,187 @@ void Stitch::Match(int current) {
 
 	// 匹配点之间连线
 	CImg<unsigned char> display;
-	display.append(displayImgs[current]);
-	display.append(displayImgs[current - 1]);
+	display.append(imgList[current - 1].img);
+	display.append(imgList[current].img);
 	for (int i = 0; i < match.size(); i++) {
-		int x0 = match[i].second.x;
-		int y0 = match[i].second.y;
-		int x1 = match[i].first.x + displayImgs[current].width();
-		int y1 = match[i].first.y;
+		unsigned int RED[] = { 255, 0, 0 };
+		display.draw_circle((int)match[i].first.x, (int)match[i].first.y, 2, RED);
+		display.draw_circle((int)match[i].second.x + imgList[current - 1].img.width(), (int)match[i].second.y, 2, RED);
+		int x0 = match[i].first.x;
+		int y0 = match[i].first.y;
+		int x1 = match[i].second.x + imgList[current - 1].img.width();
+		int y1 = match[i].second.y;
 		unsigned int BLUE[] = { 0, 0, 255 };
 		display.draw_line(x0, y0, x1, y1, BLUE);
 	}
 	display.display("match");
 }
 
+/* 计算变换矩阵*/
+bool calHomography(const vector<pair<VlSiftKeypoint, VlSiftKeypoint>> &samples, double H[9]) {
+	int x1[4], y1[4], x2[4], y2[4];
+	/* 将本次选中的四组匹配点放入矩阵*/
+	for (int i = 0; i < samples.size(); ++i) {
+		x1[i] = samples[i].first.x;
+		y1[i] = samples[i].first.y;
+		x2[i] = samples[i].second.x;
+		y2[i] = samples[i].second.y;
+	}
+	int v[8];
+	for (int i = 0; i < 4; ++i) {
+		v[2 * i] = x2[i];
+		v[2 * i + 1] = y2[i];
+	}
+	double InverseMatrix[8][8] = { 0 };
+	/* 利用高斯消元法求取逆矩阵和变换矩阵*/
+	if (!gauss_jordan(x1, y1, x2, y2, v, H)) {
+		return false;
+	}
+
+	H[8] = 1;
+	return true;
+}
+
+/* 对匹配到的特征点对进行筛选*/
 void Stitch::Ransac() {
 	cout << "RANSAC Begin\n";
 
-	int reject_thresh = REJECT_THRESH;
 	int max_iters = MAX_ITERS;
-	int maxGoodCount = 0;
-	double H[9];
+	double confidence = CONFIDENCE;
+	double reject_thresh = REJECT_THRESH;
+	double xform[9];
+	CImg<float> srcPoints(match.size(), 3);
+	CImg<float> resPoints(match.size(), 3);
+	vector<double> err(match.size());
 	vector<bool> mask(match.size());
-	// 找最优变换矩阵
-	for (int iter = 0; iter < max_iters; iter++) {
-		int goodCount = 0;
-		// 随机取四点
-		VlRand *rand = vl_get_rand();
-		vector<pair<VlSiftKeypoint, VlSiftKeypoint>> samples;
-		while (samples.size() < 4) {
-			int index = vl_rand_int31(rand) % match.size();
-			samples.push_back(match[index]);
-		}
-		// 计算变换矩阵
-		if (findHomography(samples, H)) {
-			//计算每组点的投影误差
-			vector<double> err(match.size());
+	cimg_forX(srcPoints, i) {
+		srcPoints(i, 0) = match[i].first.x;
+		srcPoints(i, 1) = match[i].first.y;
+		srcPoints(i, 2) = 1;
+
+		resPoints(i, 0) = match[i].second.x;
+		resPoints(i, 1) = match[i].second.y;
+		resPoints(i, 2) = 1;
+	}
+
+	int maxGoodCount = 0, goodCount = 0;
+	double H[9];
+	for (int iter = 0; iter < max_iters; ++iter) {
+		/* 随机找出四对不相同且不共线的点*/
+		vector<pair<VlSiftKeypoint, VlSiftKeypoint>> samples = getRandomPoints(match);
+		/* 计算变换矩阵*/
+		if (calHomography(samples, H)) {
+			//找出内点
+			goodCount = 0;
 			for (int i = 0; i < match.size(); ++i) {
-				double ww = 1. / (H[6] * match[i].first.x + H[7] * match[i].first.y + 1.);
-				double dx = (H[0] * match[i].first.x + H[1] * match[i].first.y + H[2]) * ww - match[i].second.x;
-				double dy = (H[3] * match[i].first.x + H[4] * match[i].first.y + H[5]) * ww - match[i].second.y;
+				double ww = 1. / (H[6] * srcPoints(i, 0) + H[7] * srcPoints(i, 1) + 1.);
+				double dx = (H[0] * srcPoints(i, 0) + H[1] * srcPoints(i, 1) + H[2]) * ww - resPoints(i, 0);
+				double dy = (H[3] * srcPoints(i, 0) + H[4] * srcPoints(i, 1) + H[5]) * ww - resPoints(i, 1);
 				err[i] = dx * dx + dy * dy;
 			}
+			/* 误差在允许范围内的点则为内点*/
 			reject_thresh *= reject_thresh;
-			//找出内点
-			for (int i = 0; i < match.size(); i++) {
-				//误差在限定范围内，加入‘内点集’
-				mask[i] = (err[i] <= reject_thresh);
+			for (int i = 0; i < match.size(); ++i) {
+				if (err[i] <= reject_thresh) {
+					mask[i] = true;
+				}
+				else mask[i] = false;
 				goodCount += mask[i];
 			}
-			// 迭代
+			/*更新迭代次数*/
 			if (goodCount > VL_MAX(maxGoodCount, samples.size() - 1)) {
-				memcpy(transform, H, 9 * sizeof(double));
+				memcpy(xform, H, 9 * sizeof(float));
 				maxGoodCount = goodCount;
-				max_iters = log(1. - CONFIDENCE / log(1. - pow((double)goodCount / match.size(), 4)));
+				max_iters = log(1. - confidence) / log(1. - pow((double)goodCount / match.size(), 4));
 			}
+			printf("maxInlines: %d\titer: %d\tmaxIters: %d\n", maxGoodCount, iter, max_iters);
 		}
 	}
+	/*将筛选后的匹配点集保存*/
 	vector<pair<VlSiftKeypoint, VlSiftKeypoint>> ret;
 	for (int i = 0; i < match.size(); ++i) {
-		if (mask[i]) {
+		if (mask[i])
 			ret.push_back(match[i]);
-		}
 	}
 	match = ret;
 
 	cout << "RANSAC Done\n";
 }
 
-bool Stitch::findHomography(const vector<pair<VlSiftKeypoint, VlSiftKeypoint>> &samples, double H[]) {
-	vector<pair<int, int>> srcPoints;
-	vector<pair<int, int>> resPoints;
+/*图像配准融合*/
+void Stitch::Blending(int current) {
+	CImg<float> leftImg = resultImg;
+	CImg<float> rightImg = imgList[current].img;
 
-	for (int i = 0; i < 4; ++i) {
-		srcPoints.push_back(make_pair(samples[i].first.x, samples[i].first.y));
-		resPoints.push_back(make_pair(samples[i].second.x, samples[i].second.y));
+	/*根据平均变换位移确定图像的平移距离*/
+	double dx = 0, dy = 0;
+	for (int i = 0; i < match.size(); i++) {
+		dx += (match[i].first.x - match[i].second.x);
+		dy += (match[i].first.y - match[i].second.y);
 	}
+	dx = abs(dx / match.size()) * offset;
+	dy = - abs(dy / match.size());
 
-	double InverseMatrix[8][8] = { 0 };
-	if (!GetInverseMatrix(srcPoints, resPoints, 8, InverseMatrix)) {
-		return false;
-	}
-	int uv[8] = {
-		resPoints[0].first, resPoints[0].second,
-		resPoints[1].first, resPoints[1].second,
-		resPoints[2].first, resPoints[2].second,
-		resPoints[3].first, resPoints[3].second
-	};
+	/*确定拼接图像的宽高大小*/
+	CImg<float> blendImg(leftImg.width() + rightImg.width() - dx,
+		leftImg.height() + abs(dy), 1, 3);
 
-	for (int i = 0; i < 8; i++) {
-		H[i] = 0;
-		for (int j = 0; j < 8; j++) {
-			H[i] += InverseMatrix[i][j] * uv[j];
+	cimg_forXY(blendImg, x, y) {
+		if (dy <= 0 && (rightImg.width() > x - (leftImg.width() - dx) && rightImg.height() > y - (0 - dy))) { //右侧图片需要往下左移动
+			if (x < leftImg.width() && y < leftImg.height()) {
+				if (x >= (leftImg.width() - dx) && y >= (0 - dy)) { // 重叠部分
+					blendImg(x, y, 0) = (float)leftImg(x, y, 0) * (float)(leftImg.width() - x) / (float)abs(dx)
+						+ (float)rightImg(x - (leftImg.width() - dx), y - (0 - dy), 0) * (float)(x - (leftImg.width() - dx)) / (float)abs(dx);
+					blendImg(x, y, 1) = (float)leftImg(x, y, 1) * (float)(leftImg.width() - x) / (float)abs(dx)
+						+ (float)rightImg(x - (leftImg.width() - dx), y - (0 - dy), 1) * (float)(x - (leftImg.width() - dx)) / (float)abs(dx);
+					blendImg(x, y, 2) = (float)leftImg(x, y, 2) * (float)(leftImg.width() - x) / (float)abs(dx)
+						+ (float)rightImg(x - (leftImg.width() - dx), y - (0 - dy), 2) * (float)(x - (leftImg.width() - dx)) / (float)abs(dx);
+				}
+				else {    //A独在部分
+					blendImg(x, y, 0) = leftImg(x, y, 0);
+					blendImg(x, y, 1) = leftImg(x, y, 1);
+					blendImg(x, y, 2) = leftImg(x, y, 2);
+				}
+			}
+			else if (x >= (leftImg.width() - dx) && y >= (0 - dy) && y < (0 - dy) + rightImg.height()) {    //B独在部分
+				blendImg(x, y, 0) = rightImg(x - (leftImg.width() - dx), y - (0 - dy), 0);
+				blendImg(x, y, 1) = rightImg(x - (leftImg.width() - dx), y - (0 - dy), 1);
+				blendImg(x, y, 2) = rightImg(x - (leftImg.width() - dx), y - (0 - dy), 2);
+			}
+			else {    //黑色部分
+				blendImg(x, y, 0) = 0;
+				blendImg(x, y, 1) = 0;
+				blendImg(x, y, 2) = 0;
+			}
+		}
+		else {    //右侧图片需要往上左移动
+			if (x < leftImg.width() && y < rightImg.height()) {
+				if (x >= (leftImg.width() - dx) && y >= (0 - dy)) {    //混合
+					blendImg(x, y, 0) = (float)leftImg(x, y - dy, 0) * (float)(leftImg.width() - x) / (float)abs(dx)
+						+ (float)rightImg(x - (leftImg.width() - dx), y, 0) * (float)(x - (leftImg.width() - dx)) / (float)abs(dx);
+					blendImg(x, y, 1) = (float)leftImg(x, y - dy, 1) * (float)(leftImg.width() - x) / (float)abs(dx)
+						+ (float)rightImg(x - (leftImg.width() - dx), y, 1) * (float)(x - (leftImg.width() - dx)) / (float)abs(dx);
+					blendImg(x, y, 2) = (float)leftImg(x, y - dy, 2) * (float)(leftImg.width() - x) / (float)abs(dx)
+						+ (float)rightImg(x - (leftImg.width() - dx), y, 2) * (float)(x - (leftImg.width() - dx)) / (float)abs(dx);
+				}
+				else {    //A独在部分
+					blendImg(x, y, 0) = leftImg(x, y - dy, 0);
+					blendImg(x, y, 1) = leftImg(x, y - dy, 1);
+					blendImg(x, y, 2) = leftImg(x, y - dy, 2);
+				}
+			}
+			else if (x >= (leftImg.width() - dx) && y < rightImg.height()) {    //B独在部分
+				blendImg(x, y, 0) = rightImg(x - (leftImg.width() - dx), y, 0);
+				blendImg(x, y, 1) = rightImg(x - (leftImg.width() - dx), y, 1);
+				blendImg(x, y, 2) = rightImg(x - (leftImg.width() - dx), y, 2);
+			}
+			else {    //黑色部分
+				blendImg(x, y, 0) = 0;
+				blendImg(x, y, 1) = 0;
+				blendImg(x, y, 2) = 0;
+			}
 		}
 	}
-	H[8] = 1;
-	return true;
-}
-
-void Stitch::Combine() {
-
-}
-
-void Stitch::Blending() {
-
+	blendImg.display("blendImg");
+	resultImg = blendImg;
 }

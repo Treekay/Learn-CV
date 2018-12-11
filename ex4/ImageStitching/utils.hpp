@@ -3,83 +3,100 @@
 
 #include <iostream>
 #include <vector>
+#include <string>
+
+#include "CImg.h"
 
 using namespace std;
+using namespace cimg_library;
 
-#define N 8
-
-//按第一行展开计算|A|
-double getA(double arcs[N][N], int n) {
-	if (n == 1) {
-		return arcs[0][0];
-	}
-	double ans = 0;
-	double temp[N][N] = { 0.0 };
-	for ( int i = 0; i < n; i++) {
-		for (int j = 0; j < n - 1; j++) {
-			for (int k = 0; k < n - 1; k++) {
-				temp[j][k] = arcs[j + 1][(k >= i) ? k + 1 : k];
-			}
-		}
-		double t = getA(temp, n - 1);
-		if (i % 2 == 0) {
-			ans += arcs[0][i] * t;
-		}
-		else {
-			ans -= arcs[0][i] * t;
-		}
-	}
-	return ans;
+extern "C" {
+#include <vl/generic.h>
+#include <vl/stringop.h>
+#include <vl/pgm.h>
+#include <vl/sift.h>
+#include <vl/getopt_long.h>
+#include <vl/kdtree.h>
+#include <vl/random.h>
 }
 
-//计算每一行每一列的每个元素所对应的余子式，组成A*
-void getAStar(double arcs[N][N], int n, double ans[N][N]) {
-	if (n == 1) {
-		ans[0][0] = 1;
-		return;
+/*用于检查三个点是否共线*/
+bool check(VlSiftKeypoint p1, VlSiftKeypoint p2, VlSiftKeypoint p3) {
+	return (p3.y - p1.y) * (p3.x - p2.x) != (p3.y - p2.y) * (p3.x - p1.x);
+}
+
+/*用于随机生成四对不同的不同线匹配点*/
+vector<pair<VlSiftKeypoint, VlSiftKeypoint>> getRandomPoints(vector<pair<VlSiftKeypoint, VlSiftKeypoint>> match) {
+	srand(time(0));
+	vector<pair<VlSiftKeypoint, VlSiftKeypoint>> ret;
+	int allThree[4][3] = { { 0, 1, 2 },{ 0, 1, 3 },{ 0, 2, 3 },{ 1, 2 ,3 } };
+	bool flag = true;
+	int visitd[4] = { 0 };
+	while (flag) {
+		ret.clear();
+		flag = false;
+		for (int i = 0; i < 4; ) {
+			int index = rand() % match.size(), j;
+			for (j = 0; j < i; ++j) {
+				if (index == visitd[j])
+					break;
+			}
+			if (j == i) {
+				ret.push_back(match[index]);
+				visitd[i] = index;
+				++i;
+			}
+		}
+		for (int i = 0; i < 4; ++i) {
+			if (!check(ret[allThree[i][0]].first, ret[allThree[i][1]].first, ret[allThree[i][2]].first))
+				flag = true;
+		}
 	}
-	int i, j, k, t;
-	double temp[N][N];
-	for (i = 0; i < n; i++) {
-		for (j = 0; j < n; j++) {
-			for (k = 0; k < n - 1; k++) {
-				for (t = 0; t < n - 1; t++) {
-					temp[k][t] = arcs[k >= i ? k + 1 : k][t >= j ? t + 1 : t];
+	return ret;
+}
+
+/*利用高斯消元法求取目标矩阵*/
+bool gauss_jordan(int x1[4], int y1[4], int x2[4], int y2[4], int b[8], double H[9]) {
+	double src[8][8] = { { x1[0], y1[0], 1, 0, 0, 0, -x1[0] * x2[0], -x2[0] * y1[0] },
+	{ 0, 0, 0, x1[0], y1[0], 1, -x1[0] * y2[0], -y1[0] * y2[0] },
+	{ x1[1], y1[1], 1, 0, 0, 0, -x1[1] * x2[1], -x2[1] * y1[1] },
+	{ 0, 0, 0, x1[1], y1[1], 1, -x1[1] * y2[1], -y1[1] * y2[1] },
+	{ x1[2], y1[2], 1, 0, 0, 0, -x1[2] * x2[2], -x2[2] * y1[2] },
+	{ 0, 0, 0, x1[2], y1[2], 1, -x1[2] * y2[2], -y1[2] * y2[2] },
+	{ x1[3], y1[3], 1, 0, 0, 0, -x1[3] * x2[3], -x2[3] * y1[3] },
+	{ 0, 0, 0, x1[3], y1[3], 1, -x1[3] * y2[3], -y1[3] * y2[3] } };
+	int n = 8;
+	double B[8][9];
+	for (int i = 0; i < n; ++i) {
+		for (int j = 0; j < n; ++j) {
+			B[i][j] = src[i][j];
+		}
+		B[i][n] = b[i];
+	}
+
+	for (int i = 0; i < n; ++i) {
+		int pivot = i;
+		for (int j = i; j < n; ++j) {
+			if (abs(B[j][i]) > abs(B[pivot][i]))
+				pivot = j;
+		}
+		swap(B[i], B[pivot]);
+
+		//无解或者有无穷解 
+		if (abs(B[i][i]) < 1E-8) return false;
+
+		double k = B[i][i];
+		for (int j = i; j <= n; ++j) B[i][j] /= k;
+		for (int j = 0; j < n; ++j) {
+			if (i != j) {
+				for (int k = i + 1; k <= n; ++k) {
+					B[j][k] -= B[j][i] * B[i][k];
 				}
 			}
-			ans[j][i] = getA(temp, n - 1);  //此处顺便进行了转置
-			if ((i + j) % 2 == 1) {
-				ans[j][i] = -ans[j][i];
-			}
 		}
 	}
-}
-
-//得到给定矩阵src的逆矩阵保存到des中。
-bool GetInverseMatrix(vector<pair<int, int>> srcPoints, vector<pair<int, int>> resPoints, int n, double des[N][N]) {
-	double src[8][8] =
-	{ { srcPoints[0].first, srcPoints[0].second, 1, 0, 0, 0, -resPoints[0].first*srcPoints[0].first, -resPoints[0].first*srcPoints[0].second },
-	{ 0, 0, 0, srcPoints[0].first, srcPoints[0].second, 1, -resPoints[0].second*srcPoints[0].first, -resPoints[0].second*srcPoints[0].second },
-	{ srcPoints[1].first, srcPoints[1].second, 1, 0, 0, 0, -resPoints[1].first*srcPoints[1].first, -resPoints[1].first*srcPoints[1].second },
-	{ 0, 0, 0, srcPoints[1].first, srcPoints[1].second, 1, -resPoints[1].second*srcPoints[1].first, -resPoints[1].second*srcPoints[1].second },
-	{ srcPoints[2].first, srcPoints[2].second, 1, 0, 0, 0, -resPoints[2].first*srcPoints[2].first, -resPoints[2].first*srcPoints[2].second },
-	{ 0, 0, 0, srcPoints[2].first, srcPoints[2].second, 1, -resPoints[2].second*srcPoints[2].first, -resPoints[2].second*srcPoints[2].second },
-	{ srcPoints[3].first, srcPoints[3].second, 1, 0, 0, 0, -resPoints[3].first*srcPoints[3].first, -resPoints[3].first*srcPoints[3].second },
-	{ 0, 0, 0, srcPoints[3].first, srcPoints[3].second, 1, -resPoints[3].second*srcPoints[3].first, -resPoints[3].second*srcPoints[3].second } };
-
-	double flag = getA(src, n);
-	double t[N][N];
-	if (0 == flag) {
-		return false;//如果算出矩阵的行列式为0，则不往下进行
-	}
-	else {
-		getAStar(src, n, t);
-		for (int i = 0; i<n; i++) {
-			for (int j = 0; j<n; j++) {
-				des[i][j] = t[i][j] / flag;
-			}
-		}
-	}
+	for (int i = 0; i < n; ++i)
+		H[i] = B[i][n];
 	return true;
 }
 
