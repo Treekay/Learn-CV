@@ -76,7 +76,6 @@ void ImgSegment::edgeDelete(int len) {
     }
 
     // 用广度优先搜索遍历每条边
-    // 若该边的长度小于20,则将该边删除
     // 遍历过程中将边上的点放入容器,以便后续删除
     cimg_forXY(edgeImg, x, y) {
         if (edgeImg(x, y) == 255 && SignMap(x, y) == 0) {
@@ -121,9 +120,11 @@ void ImgSegment::edgeDelete(int len) {
     edgeImg.display("edgeImage");
 }
 
+// 用霍夫变换进行直线检测并找出角点
 void ImgSegment::getPoints() {
     points = houghLine(edgeImg, 29, 502, 200).getPoints();
     double dist[3] = {0};
+    // 将曼哈顿距离最小的点作为起点
     int minDist = points[0].first + points[0].second;
     for (int i = 1; i < 4; i++) {
         if (points[i].first + points[i].second < minDist) {
@@ -131,7 +132,7 @@ void ImgSegment::getPoints() {
             swap(points[0], points[i]);
         }
     }
-
+    // 将点按距离起始点距离的大小进行排列
     for (int i = 1; i < points.size(); i++) {
         dist[i - 1] = sqrt(pow(points[0].first - points[i].first, 2) + pow(points[0].second - points[i].second, 2));
     }

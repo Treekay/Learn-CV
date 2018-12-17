@@ -31,9 +31,9 @@ public:
 		}
 		initCentroids(); // 随机初始化聚类中心点
 		for (int i = 0; i < maxIter; i++) {
-			updateCluster();
-			updateCentroids();
-			if (accept) break;
+			updateCluster();	// 更新聚类
+			updateCentroids();	// 更新聚类中心点
+			if (accept) break;	// 判断是否收敛
 		}
 	}
 
@@ -43,7 +43,7 @@ public:
 		srand(time(0));
 		double value1 = points[rand() % points.size()].val;
 		means.push_back(value1);
-		// 找到距离第一个中心店最远的点
+		// 找到距离第一个中心点最远的点
 		double value2, max = 0;
 		int index = 0;
 		for (int i = 0; i < points.size(); i++) {
@@ -58,6 +58,7 @@ public:
 	
 	// 聚类
 	void updateCluster() {
+		// 找到距离每个点最远的聚类中心
 		for (int i = 0; i < points.size(); i++) {
 			double minDist = calDist(points[i], means[0]);
 			for (int j = 0; j < 2; j++) {
