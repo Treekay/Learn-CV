@@ -31,11 +31,17 @@ CImg<double> ImgSegment::gaussianFilter() {
     return grayscaled.blur(1);
 }
 
+/*
+    KMeans 对图像进行聚类，聚成两类因此得到的是二值图像
+*/
 void ImgSegment::clustering() {
     clusterImg = KMeans(gaussianFilter()).getCluster();
     clusterImg.display("Cluster Img");
 }
 
+/*
+    根据像素点的八领域内是否存在两种点初步判断该点是否为边缘点
+*/
 void ImgSegment::edgeDetect() {
     edgeImg = CImg<double>(width, height, 1, 3);
     cimg_forXY(clusterImg, x, y) {
@@ -56,6 +62,7 @@ void ImgSegment::edgeDetect() {
                 }
             }
         }
+        // 若存在两种点
         if (a && b) {
             edgeImg(x, y, 0) = 255;
             edgeImg(x, y, 1) = 255;
@@ -158,6 +165,10 @@ void ImgSegment::getPoints() {
     targetPoints.push_back(make_pair(paperWidth, paperHeight));
 }
 
+/*
+    计算从矫正图像变换到原图像的变换矩阵
+    根据矫正图像每一点的像素求得在原图像的位置并求插值
+*/
 void ImgSegment::calHomography() {
     // debug
     for (int i = 0; i < sourcePoints.size(); i++) {
@@ -169,7 +180,7 @@ void ImgSegment::calHomography() {
         sourcePoints[1].first, sourcePoints[1].second,
         sourcePoints[2].first, sourcePoints[2].second, 
         sourcePoints[3].first, sourcePoints[3].second };
-    
+    // 填充矩阵
     double src[8][8] =
     { { targetPoints[0].first, targetPoints[0].second, 1, 0, 0, 0, -sourcePoints[0].first*targetPoints[0].first, -sourcePoints[0].first*targetPoints[0].second },
     { 0, 0, 0, targetPoints[0].first, targetPoints[0].second, 1, -sourcePoints[0].second*targetPoints[0].first, -sourcePoints[0].second*targetPoints[0].second },
@@ -204,13 +215,15 @@ void ImgSegment::calHomography() {
     cout << endl;
 }
 
+// 双线性插值获得矫正图像
 void ImgSegment::inverseProject() {
     cimg_forXY(resultImg, x, y) {
+        // 根据逆变换矩阵求出矫正图像上的像素点在原图对应的位置
         double px = H[0] * x + H[1] * y + H[2] * 1;
         double py = H[3] * x + H[4] * y + H[5] * 1;
         double p = H[6] * x + H[7] * y + 1;
 
-        // 在原图求插值
+        // 在原图对应位置求插值
         double u = px / p;
         double v = py / p;
         if (u >= 0 && u < width && v >= 0 && v < height) {
