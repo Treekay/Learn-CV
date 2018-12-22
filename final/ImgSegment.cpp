@@ -1,6 +1,7 @@
 #include "ImgSegment.hpp"
 #include "KMeans.hpp"
 #include "utils.hpp"
+#include "myCanny.h"
 #include "houghLine.h"
 
 ImgSegment::ImgSegment(string imgPath, string _resPath){
@@ -16,6 +17,7 @@ ImgSegment::ImgSegment(string imgPath, string _resPath){
     getPoints();
     calHomography();
     inverseProject();
+    getNumber();
 }
 
 /*
@@ -129,13 +131,13 @@ void ImgSegment::edgeDelete(int len) {
 
 // 用霍夫变换进行直线检测并找出角点
 void ImgSegment::getPoints() {
-    points = houghLine(edgeImg, 29, 502, 200).getPoints();
+    points = houghLine(edgeImg, 39, 507, 320).getPoints();
     double dist[3] = {0};
     // 将曼哈顿距离最小的点作为起点
-    int minDist = points[0].first + points[0].second;
-    for (int i = 1; i < 4; i++) {
-        if (points[i].first + points[i].second < minDist) {
-            minDist = points[i].first + points[i].second;
+    int minDist = pow(points[0].first, 2) + pow(points[0].second, 2);
+    for (int i = 1; i < points.size(); i++) {
+        if (pow(points[i].first, 2) + pow(points[i].second, 2) < minDist) {
+            minDist = pow(points[i].first, 2) + pow(points[i].second, 2);
             swap(points[0], points[i]);
         }
     }
@@ -255,4 +257,72 @@ void ImgSegment::inverseProject() {
     }
     resultImg.display("resultImg");
     resultImg.save(resPath.c_str());
+}
+
+void ImgSegment::getNumber() {
+    edgeImg = canny(resultImg, 5, 1, 60, 30).edgeDelete(26, 500);
+    edgeImg.display("Number edge image");
+
+    CImg<double> SignMap(edgeImg.width(), edgeImg.height());
+    // 初始化标记图
+    // 该图用于标记边缘点是否访问过
+    cimg_forXY(SignMap, x, y) {
+        SignMap(x, y) = 0;
+    }
+
+    cimg_forXY(edgeImg, x, y) {
+        if (edgeImg(x, y) == 255 && SignMap(x, y) == 0) {
+            vector<pair<int, int>> PointSet;
+            queue<pair<int, int>> temp;
+            SignMap(x, y) = 1;
+            temp.push(make_pair(x, y));
+            PointSet.push_back(make_pair(x, y));
+            while (!temp.empty()) {
+                int nowX = temp.front().first;
+                int nowY = temp.front().second;
+                temp.pop();
+                for (int i = nowX - 1; i < nowX + 2; i++) {
+                    for (int j = nowY - 1; j < nowY + 2; j++) {
+                        // 搜索八邻域
+                        if (i >= 0 && i < edgeImg.width() && j >= 0 && j < edgeImg.height()) {
+                            if (edgeImg(i, j) == 255 && SignMap(i, j) == 0) {
+                                SignMap(i, j) = 1;
+                                temp.push(make_pair(i, j));
+                                PointSet.push_back(make_pair(i, j));
+                            }
+                        }
+                    }
+                }
+            }
+            // 分割数字
+            int minX = edgeImg.width(), minY = edgeImg.height(), maxX = 0, maxY = 0;
+            for (int i = 0; i < PointSet.size(); i++) {
+                if (PointSet[i].first < minX) {
+                    minX = PointSet[i].first;
+                }
+                if (PointSet[i].first > maxX) {
+                    maxX = PointSet[i].first;
+                }
+                if (PointSet[i].second < minY) {
+                    minY = PointSet[i].second;
+                }
+                if (PointSet[i].second > maxY) {
+                    maxY = PointSet[i].second;
+                }
+            }
+            // 生成数字子图像
+            int _width = maxX - minX;
+            int _height = maxY - minY;
+            CImg<double> _digitImg(_width + 4, _height + 4, 1, 3);
+            cimg_forXY(_digitImg, a, b) {
+                if (minX + a - 2 < width && minY + b - 2 < height) {
+                    _digitImg(a, b, 0) = resultImg(minX + a - 2, minY + b - 2, 0);
+                    _digitImg(a, b, 1) = resultImg(minX + a - 2, minY + b - 2, 1);
+                    _digitImg(a, b, 2) = resultImg(minX + a - 2, minY + b - 2, 2);
+                }
+            }
+            _digitImg.display("digit");
+            digitImgs.push_back(_digitImg);
+        }
+    }
 }

@@ -21,6 +21,7 @@ public:
     void getPoints();               // 特征点获取
     void calHomography();           // 计算变换矩阵
     void inverseProject();          // 逆映射和双线性差值
+    void getNumber();
   
 private:
     CImg<double> sourceImg;         // 原图像
@@ -33,6 +34,8 @@ private:
     double H[8];            // 从矫正图像变换到原图像的逆变换矩阵
     int width, height;      // 原图像宽高
     string resPath;         // 文件保存路径
+
+    vector<CImg<double>> digitImgs;
 };
 
 #endif // !_IMGSEGMENTATION

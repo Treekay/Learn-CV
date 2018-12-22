@@ -1,15 +1,16 @@
 #include "ImgSegment.cpp"
 #include "houghLine.cpp"
+#include "myCanny.cpp"
 
 int main(void) {
-    ImgSegment("./ImageData/paper1.bmp", "./Result/paper1.bmp");
-    ImgSegment("./ImageData/paper2.bmp", "./Result/paper2.bmp");
-    ImgSegment("./ImageData/paper3.bmp", "./Result/paper3.bmp");
-    ImgSegment("./ImageData/paper4.bmp", "./Result/paper4.bmp");
-    ImgSegment("./ImageData/paper5.bmp", "./Result/paper5.bmp");
-    ImgSegment("./ImageData/paper6.bmp", "./Result/paper6.bmp");
-    ImgSegment("./ImageData/paper7.bmp", "./Result/paper3.bmp");
-    ImgSegment("./ImageData/paper8.bmp", "./Result/paper4.bmp");
-    ImgSegment("./ImageData/paper9.bmp", "./Result/paper5.bmp");
-    ImgSegment("./ImageData/paper10.bmp", "./Result/paper6.bmp");
+    ImgSegment("./ImageData/paper (1).bmp", "./Result/paper (1).bmp");
+    ImgSegment("./ImageData/paper (2).bmp", "./Result/paper (2).bmp");
+    ImgSegment("./ImageData/paper (3).bmp", "./Result/paper (3).bmp");
+    ImgSegment("./ImageData/paper (4).bmp", "./Result/paper (4).bmp");
+    ImgSegment("./ImageData/paper (5).bmp", "./Result/paper (5).bmp");
+    ImgSegment("./ImageData/paper (6).bmp", "./Result/paper (6).bmp");
+    ImgSegment("./ImageData/paper (7).bmp", "./Result/paper (7).bmp");
+    ImgSegment("./ImageData/paper (8).bmp", "./Result/paper (8).bmp");
+    ImgSegment("./ImageData/paper (9).bmp", "./Result/paper (9).bmp");
+    ImgSegment("./ImageData/paper (10).bmp", "./Result/paper (10).bmp");
 }
