@@ -17,7 +17,9 @@ ImgSegment::ImgSegment(string imgPath, string _resPath){
     getPoints();
     calHomography();
     inverseProject();
+    expand();
     getNumber();
+    standard();
 }
 
 /*
@@ -220,6 +222,9 @@ void ImgSegment::calHomography() {
 // 双线性插值获得矫正图像
 void ImgSegment::inverseProject() {
     cimg_forXY(resultImg, x, y) {
+        resultImg(x, y, 0) = 255;
+        resultImg(x, y, 1) = 255;
+        resultImg(x, y, 2) = 255;
         // 根据逆变换矩阵求出矫正图像上的像素点在原图对应的位置
         double px = H[0] * x + H[1] * y + H[2] * 1;
         double py = H[3] * x + H[4] * y + H[5] * 1;
@@ -259,8 +264,14 @@ void ImgSegment::inverseProject() {
     resultImg.save(resPath.c_str());
 }
 
-void ImgSegment::getNumber() {
-    edgeImg = canny(resultImg, 5, 1, 60, 30).edgeDelete(26, 500);
+void ImgSegment::expand() {
+    edgeImg = canny(resultImg, 5, 1, 60, 20).edgeDelete(26, 500);
+    cimg_forXY(edgeImg, x, y) {
+        if (x - 0 < 10 || edgeImg.width() - x < 10 
+        || edgeImg.height() - y < 10 || y - 0 < 10) {
+            edgeImg(x, y) = 0;
+        }
+    }
     edgeImg.display("Number edge image");
 
     CImg<double> SignMap(edgeImg.width(), edgeImg.height());
@@ -270,10 +281,14 @@ void ImgSegment::getNumber() {
         SignMap(x, y) = 0;
     }
 
+    vector<vector<pair<int, int>>> Sets;
     cimg_forXY(edgeImg, x, y) {
         if (edgeImg(x, y) == 255 && SignMap(x, y) == 0) {
+            int count = 0;
             vector<pair<int, int>> PointSet;
             queue<pair<int, int>> temp;
+
+            count++;
             SignMap(x, y) = 1;
             temp.push(make_pair(x, y));
             PointSet.push_back(make_pair(x, y));
@@ -286,6 +301,7 @@ void ImgSegment::getNumber() {
                         // 搜索八邻域
                         if (i >= 0 && i < edgeImg.width() && j >= 0 && j < edgeImg.height()) {
                             if (edgeImg(i, j) == 255 && SignMap(i, j) == 0) {
+                                count++;
                                 SignMap(i, j) = 1;
                                 temp.push(make_pair(i, j));
                                 PointSet.push_back(make_pair(i, j));
@@ -294,35 +310,126 @@ void ImgSegment::getNumber() {
                     }
                 }
             }
-            // 分割数字
-            int minX = edgeImg.width(), minY = edgeImg.height(), maxX = 0, maxY = 0;
-            for (int i = 0; i < PointSet.size(); i++) {
-                if (PointSet[i].first < minX) {
-                    minX = PointSet[i].first;
-                }
-                if (PointSet[i].first > maxX) {
-                    maxX = PointSet[i].first;
-                }
-                if (PointSet[i].second < minY) {
-                    minY = PointSet[i].second;
-                }
-                if (PointSet[i].second > maxY) {
-                    maxY = PointSet[i].second;
-                }
-            }
-            // 生成数字子图像
-            int _width = maxX - minX;
-            int _height = maxY - minY;
-            CImg<double> _digitImg(_width + 4, _height + 4, 1, 3);
-            cimg_forXY(_digitImg, a, b) {
-                if (minX + a - 2 < width && minY + b - 2 < height) {
-                    _digitImg(a, b, 0) = resultImg(minX + a - 2, minY + b - 2, 0);
-                    _digitImg(a, b, 1) = resultImg(minX + a - 2, minY + b - 2, 1);
-                    _digitImg(a, b, 2) = resultImg(minX + a - 2, minY + b - 2, 2);
-                }
-            }
-            _digitImg.display("digit");
-            digitImgs.push_back(_digitImg);
+            Sets.push_back(PointSet);
         }
+    }
+    for (int k = 0; k < Sets.size(); k++) {
+        // 3*3 领域内膨胀
+        for (int t = 0; t < Sets[k].size(); t++) {
+            int tX = Sets[k][t].first;
+            int tY = Sets[k][t].second;
+            for (int i = tX - 1; i < tX + 2; i++) {
+                for (int j = tY - 1; j < tY + 2; j++) {
+                    if (i >= 0 && i < edgeImg.width() && j >= 0 && j < edgeImg.height()) {
+                        edgeImg(i, j) = 255;
+                    }
+                }
+            }
+        }
+    }
+}
+
+void ImgSegment::getNumber() {
+    edgeImg.display("Number expand image");
+
+    CImg<double> SignMap(edgeImg.width(), edgeImg.height());
+    // 初始化标记图
+    // 该图用于标记边缘点是否访问过
+    cimg_forXY(SignMap, x, y) {
+        SignMap(x, y) = 0;
+    }
+    cimg_forXY(edgeImg, x, y) {
+        if (edgeImg(x, y) == 255 && SignMap(x, y) == 0) {
+            int count = 0;
+            vector<pair<int, int>> PointSet;
+            queue<pair<int, int>> temp;
+
+            count++;
+            SignMap(x, y) = 1;
+            temp.push(make_pair(x, y));
+            PointSet.push_back(make_pair(x, y));
+            while (!temp.empty()) {
+                int nowX = temp.front().first;
+                int nowY = temp.front().second;
+                temp.pop();
+                for (int i = nowX - 1; i < nowX + 2; i++) {
+                    for (int j = nowY - 1; j < nowY + 2; j++) {
+                        // 搜索八邻域
+                        if (i >= 0 && i < edgeImg.width() && j >= 0 && j < edgeImg.height()) {
+                            if (edgeImg(i, j) == 255 && SignMap(i, j) == 0) {
+                                count++;
+                                SignMap(i, j) = 1;
+                                temp.push(make_pair(i, j));
+                                PointSet.push_back(make_pair(i, j));
+                            }
+                        }
+                    }
+                }
+            }
+            if (count > 20) {
+                // 分割数字
+                int minX = edgeImg.width(), minY = edgeImg.height(), maxX = 0, maxY = 0;
+                for (int i = 0; i < PointSet.size(); i++) {
+                    if (PointSet[i].first < minX) {
+                        minX = PointSet[i].first;
+                    }
+                    if (PointSet[i].first > maxX) {
+                        maxX = PointSet[i].first;
+                    }
+                    if (PointSet[i].second < minY) {
+                        minY = PointSet[i].second;
+                    }
+                    if (PointSet[i].second > maxY) {
+                        maxY = PointSet[i].second;
+                    }
+                }
+                // 生成数字子图像
+                int _width = maxX - minX;
+                int _height = maxY - minY;
+                CImg<double> _digitImg(_width + 6, _height + 6);
+                cimg_forXY(_digitImg, a, b) {
+                    if (minX + a - 3 < width && minY + b - 3 < height) {
+                        double R = resultImg(minX + a - 3, minY + b - 3, 0);
+                        double G = resultImg(minX + a - 3, minY + b - 3, 1);
+                        double B = resultImg(minX + a - 3, minY + b - 3, 2);
+                        _digitImg(a, b) = (R * 0.2126 + G * 0.7152 + B * 0.0722);
+                    }
+                }
+                digitImgs.push_back(_digitImg);
+            }
+        }
+    }
+    cout << "nums: " << digitImgs.size() << endl;
+}
+
+
+// 规格化
+void ImgSegment::standard() {
+    for (int i = 0; i < digitImgs.size(); i++) {
+        CImg<double> stdImage(28, 28);
+        double w = digitImgs[i].width();
+        double h = digitImgs[i].height();
+        cimg_forXY(stdImage, x, y) {
+            stdImage(x, y) = 255;
+            double u = x * (w / 28);
+            double v = y * (h / 28);
+            if (u >= 0 && u < digitImgs[i].width() && v >= 0 && v < digitImgs[i].height()){
+                // 双线性插值
+                double weightLeft = ceil(u) - u;
+                double weightRight = u - floor(u);
+                double weightUp = ceil(v) - v;
+                double weightDown = v - floor(v);
+                double value = 
+                    digitImgs[i](floor(u), floor(v)) * weightLeft * weightUp +
+                    digitImgs[i](ceil(u), floor(v)) * weightRight * weightUp +
+                    digitImgs[i](floor(u), ceil(v)) * weightLeft * weightDown +
+                    digitImgs[i](ceil(u), ceil(v)) * weightRight * weightDown;
+                stdImage(x, y) = value;
+            }
+        }
+        stringstream ss;
+        ss << i;
+        string rr = "./tmp/" + ss.str() + ".bmp";
+        stdImage.save(rr.c_str());
     }
 }
