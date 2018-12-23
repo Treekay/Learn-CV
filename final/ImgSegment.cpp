@@ -222,9 +222,9 @@ void ImgSegment::calHomography() {
 // 双线性插值获得矫正图像
 void ImgSegment::inverseProject() {
     cimg_forXY(resultImg, x, y) {
-        resultImg(x, y, 0) = 255;
-        resultImg(x, y, 1) = 255;
-        resultImg(x, y, 2) = 255;
+        resultImg(x, y, 0) = 0;
+        resultImg(x, y, 1) = 0;
+        resultImg(x, y, 2) = 0;
         // 根据逆变换矩阵求出矫正图像上的像素点在原图对应的位置
         double px = H[0] * x + H[1] * y + H[2] * 1;
         double py = H[3] * x + H[4] * y + H[5] * 1;
@@ -255,9 +255,9 @@ void ImgSegment::inverseProject() {
                 sourceImg( floor(u), ceil(v), 2) * weightLeft * weightDown +
                 sourceImg( ceil(u), ceil(v), 2) * weightRight * weightDown
             };
-            resultImg(x, y, 0) = value[0];
-            resultImg(x, y, 1) = value[1];
-            resultImg(x, y, 2) = value[2];
+            resultImg(x, y, 0) = cimg::cut(value[0], 0, 255);
+            resultImg(x, y, 1) = cimg::cut(value[1], 0, 255);
+            resultImg(x, y, 2) = cimg::cut(value[2], 0, 255);
         }
     }
     resultImg.display("resultImg");
@@ -338,6 +338,8 @@ void ImgSegment::getNumber() {
     cimg_forXY(SignMap, x, y) {
         SignMap(x, y) = 0;
     }
+
+    vector<double> posSet;
     cimg_forXY(edgeImg, x, y) {
         if (edgeImg(x, y) == 255 && SignMap(x, y) == 0) {
             int count = 0;
@@ -396,12 +398,30 @@ void ImgSegment::getNumber() {
                     }
                 }
                 digitImgs.push_back(_digitImg);
+                posSet.push_back(calDist(PointSet));
+            }
+        }
+    }
+    // sort by X , Y
+    for (int i = 0; i < posSet.size(); i++) {
+        for (int j = i + 1; j < posSet.size(); j++) {
+            if (posSet[j] < posSet[i]) {
+                swap(posSet[i], posSet[j]);
+                swap(digitImgs[i], digitImgs[j]);
             }
         }
     }
     cout << "nums: " << digitImgs.size() << endl;
 }
 
+double ImgSegment::calDist(vector<pair<int, int>> points) {
+    double sumX = 0, sumY = 0;
+    for (int i = 0; i < points.size(); i++) {
+        sumX += points[i].first;
+        sumY += points[i].second;
+    }
+    return sqrt(pow(sumX / points.size(), 2) + pow(sumY / points.size(), 2));
+}
 
 // 规格化
 void ImgSegment::standard() {
@@ -410,22 +430,9 @@ void ImgSegment::standard() {
         double w = digitImgs[i].width();
         double h = digitImgs[i].height();
         cimg_forXY(stdImage, x, y) {
-            stdImage(x, y) = 255;
             double u = x * (w / 28);
             double v = y * (h / 28);
-            if (u >= 0 && u < digitImgs[i].width() && v >= 0 && v < digitImgs[i].height()){
-                // 双线性插值
-                double weightLeft = ceil(u) - u;
-                double weightRight = u - floor(u);
-                double weightUp = ceil(v) - v;
-                double weightDown = v - floor(v);
-                double value = 
-                    digitImgs[i](floor(u), floor(v)) * weightLeft * weightUp +
-                    digitImgs[i](ceil(u), floor(v)) * weightRight * weightUp +
-                    digitImgs[i](floor(u), ceil(v)) * weightLeft * weightDown +
-                    digitImgs[i](ceil(u), ceil(v)) * weightRight * weightDown;
-                stdImage(x, y) = value;
-            }
+            stdImage(x, y) = digitImgs[i](u, v);
         }
         stringstream ss;
         ss << i;

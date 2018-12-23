@@ -24,6 +24,7 @@ public:
     void inverseProject();          // 逆映射和双线性差值
     void expand();                  // 膨胀
     void getNumber();               // 切割数字
+    double calDist(vector<pair<int, int>>);   // 计算数字中心坐标
     void standard();                // 规格化数字图片
   
 private:
