@@ -398,11 +398,11 @@ void ImgSegment::getNumber() {
                     }
                 }
                 digitImgs.push_back(_digitImg);
-                posSet.push_back(calDist(PointSet));
+                posSet.push_back(calPosition(PointSet));
             }
         }
     }
-    // sort by X , Y
+    // sort 
     for (int i = 0; i < posSet.size(); i++) {
         for (int j = i + 1; j < posSet.size(); j++) {
             if (posSet[j] < posSet[i]) {
@@ -414,13 +414,13 @@ void ImgSegment::getNumber() {
     cout << "nums: " << digitImgs.size() << endl;
 }
 
-double ImgSegment::calDist(vector<pair<int, int>> points) {
+double ImgSegment::calPosition(vector<pair<int, int>> points) {
     double sumX = 0, sumY = 0;
     for (int i = 0; i < points.size(); i++) {
         sumX += points[i].first;
         sumY += points[i].second;
     }
-    return sqrt(pow(sumX / points.size(), 2) + pow(sumY / points.size(), 2));
+    return sumX / points.size() + sumY / points.size() * 5;
 }
 
 // 规格化
