@@ -17,9 +17,9 @@ ImgSegment::ImgSegment(string imgPath, string _resPath){
     getPoints();
     calHomography();
     inverseProject();
-    expand();
-    getNumber();
-    standard();
+    numberExpand();
+    numberSegment();
+    numberStandard();
 }
 
 /*
@@ -128,6 +128,7 @@ void ImgSegment::edgeDelete(int len) {
             }
         }
     }
+    cout << "Edge detect done\n";
     edgeImg.display("edgeImage");
 }
 
@@ -167,6 +168,7 @@ void ImgSegment::getPoints() {
     targetPoints.push_back(make_pair(paperWidth, 0));
     targetPoints.push_back(make_pair(0, paperHeight));
     targetPoints.push_back(make_pair(paperWidth, paperHeight));
+    cout << "Hough transform done\n";
 }
 
 /*
@@ -233,6 +235,9 @@ void ImgSegment::inverseProject() {
         // 在原图对应位置求插值
         double u = px / p;
         double v = py / p;
+        // resultImg(x, y, 0) = sourceImg(u, v, 0);
+        // resultImg(x, y, 1) = sourceImg(u, v, 1);
+        // resultImg(x, y, 2) = sourceImg(u, v, 2);
         if (u >= 0 && u < width && v >= 0 && v < height) {
             // 双线性插值
             double weightLeft = ceil(u) - u;
@@ -260,11 +265,12 @@ void ImgSegment::inverseProject() {
             resultImg(x, y, 2) = cimg::cut(value[2], 0, 255);
         }
     }
+    cout << "Image Segment done\n";
     resultImg.display("resultImg");
     resultImg.save(resPath.c_str());
 }
 
-void ImgSegment::expand() {
+void ImgSegment::numberExpand() {
     edgeImg = canny(resultImg, 5, 1, 60, 20).edgeDelete(26, 500);
     cimg_forXY(edgeImg, x, y) {
         if (x - 0 < 10 || edgeImg.width() - x < 10 
@@ -272,6 +278,7 @@ void ImgSegment::expand() {
             edgeImg(x, y) = 0;
         }
     }
+    cout << "Canny done\n";
     edgeImg.display("Number edge image");
 
     CImg<double> SignMap(edgeImg.width(), edgeImg.height());
@@ -327,9 +334,10 @@ void ImgSegment::expand() {
             }
         }
     }
+    cout << "Number expand done\n";
 }
 
-void ImgSegment::getNumber() {
+void ImgSegment::numberSegment() {
     edgeImg.display("Number expand image");
 
     CImg<double> SignMap(edgeImg.width(), edgeImg.height());
@@ -339,7 +347,7 @@ void ImgSegment::getNumber() {
         SignMap(x, y) = 0;
     }
 
-    vector<double> posSet;
+    vector<pair<double, double>> posSet;
     cimg_forXY(edgeImg, x, y) {
         if (edgeImg(x, y) == 255 && SignMap(x, y) == 0) {
             int count = 0;
@@ -398,33 +406,26 @@ void ImgSegment::getNumber() {
                     }
                 }
                 digitImgs.push_back(_digitImg);
-                posSet.push_back(calPosition(PointSet));
+                posSet.push_back(make_pair((maxX + minX) * 1.0 / 2, (maxY + minY) * 1.0 / 2));
             }
         }
     }
     // sort 
     for (int i = 0; i < posSet.size(); i++) {
         for (int j = i + 1; j < posSet.size(); j++) {
-            if (posSet[j] < posSet[i]) {
+            if (posSet[i].second - posSet[j].second > 25 || 
+                abs(posSet[i].second - posSet[j].second) < 25 && posSet[j].first < posSet[i].first) {
                 swap(posSet[i], posSet[j]);
                 swap(digitImgs[i], digitImgs[j]);
             }
         }
     }
+    cout << "Number segment done\n";
     cout << "nums: " << digitImgs.size() << endl;
 }
 
-double ImgSegment::calPosition(vector<pair<int, int>> points) {
-    double sumX = 0, sumY = 0;
-    for (int i = 0; i < points.size(); i++) {
-        sumX += points[i].first;
-        sumY += points[i].second;
-    }
-    return sumX / points.size() + sumY / points.size() * 5;
-}
-
 // 规格化
-void ImgSegment::standard() {
+void ImgSegment::numberStandard() {
     for (int i = 0; i < digitImgs.size(); i++) {
         CImg<double> stdImage(28, 28);
         double w = digitImgs[i].width();
@@ -439,4 +440,5 @@ void ImgSegment::standard() {
         string rr = "./tmp/" + ss.str() + ".bmp";
         stdImage.save(rr.c_str());
     }
+    cout << "Number Standard done\n";
 }

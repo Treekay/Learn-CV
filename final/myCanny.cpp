@@ -46,7 +46,7 @@ void canny::toGrayScale() {
     double newValue = (r * 0.2126 + g * 0.7152 + b * 0.0722);
     grayscaled(x, y) = newValue;
   }
-  cout << "ToGrayScale Done" << endl;
+  // cout << "ToGrayScale Done" << endl;
 }
 
 /*
@@ -75,7 +75,7 @@ void canny::gaussianFilter(int rows, int cols, double sigmaIn) {
   }
   // Use the Filter
   gFiltered = grayscaled.get_convolve(filter);
-  cout << "Gaussian Fitering Done" << endl;
+  // cout << "Gaussian Fitering Done" << endl;
 }
 
 /*
@@ -97,7 +97,7 @@ void canny::sobelFilter() {
     double Gy = yGradient(x, y);
     sFiltered(x, y) = sqrt(Gx * Gx + Gy * Gy);
   }
-  cout << "Sobel Filtering Done" << endl;
+  // cout << "Sobel Filtering Done" << endl;
 }
 
 /*
@@ -150,7 +150,7 @@ void canny::nonMaxSupp() {
       }
     }
   }
-  cout << "NonMaxSuppression Done" << endl;
+  // cout << "NonMaxSuppression Done" << endl;
 }
 
 /*
@@ -205,7 +205,7 @@ void canny::threshold(double highThresh, double lowThresh) {
       }
     }
   }
-  cout << "Double Threshold Done" << endl;
+  // cout << "Double Threshold Done" << endl;
 }
 
 /*
@@ -288,7 +288,7 @@ void canny::linkEdge() {
       }
     }
   }
-  cout << "Link Edge Done" << endl;
+  // cout << "Link Edge Done" << endl;
 }
 
 /*

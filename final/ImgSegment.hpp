@@ -22,10 +22,9 @@ public:
     void getPoints();               // 特征点获取
     void calHomography();           // 计算变换矩阵
     void inverseProject();          // 逆映射和双线性差值
-    void expand();                  // 膨胀
-    void getNumber();               // 切割数字
-    double calPosition(vector<pair<int, int>>);   // 计算数字中心坐标
-    void standard();                // 规格化数字图片
+    void numberExpand();                  // 膨胀
+    void numberSegment();               // 切割数字
+    void numberStandard();                // 规格化数字图片
   
 private:
     CImg<double> sourceImg;         // 原图像

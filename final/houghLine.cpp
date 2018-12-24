@@ -39,7 +39,7 @@ void houghLine::houghTransform() {
       houghVote(x, y);
     }
   }
-  cout << "Hough Line Transfrom Done" << endl;
+  // cout << "Hough Line Transfrom Done" << endl;
 }
 
 /* 
@@ -90,7 +90,7 @@ void houghLine::getMaxHough(int Xsize, int Ysize, int thresh) {
       }
     }
   }
-  cout << "Get Max Hough Done" << endl;
+  // cout << "Get Max Hough Done" << endl;
 }
 
 /* 
@@ -106,15 +106,15 @@ void houghLine::drawLines() {
     double r = lines[i].second - rho / 2;
 
     /* 输出直线方程 */
-    if(sin(angle) == 0) {
-      printf("x = %.0f \t%d\t%d \n", r / cos(angle), lines[i].first, lines[i].second);
-    }
-    else if (cos(angle) == 0) {
-      printf("y = %.0f \t%d\t%d \n", r / sin(angle), lines[i].first, lines[i].second);
-    }
-    else {
-      printf("y = %fx%+.0f \t%d\t%d \n", -cos(angle) / sin(angle), r / sin(angle), lines[i].first, lines[i].second);
-    }
+    // if(sin(angle) == 0) {
+    //   printf("x = %.0f \t%d\t%d \n", r / cos(angle), lines[i].first, lines[i].second);
+    // }
+    // else if (cos(angle) == 0) {
+    //   printf("y = %.0f \t%d\t%d \n", r / sin(angle), lines[i].first, lines[i].second);
+    // }
+    // else {
+    //   printf("y = %fx%+.0f \t%d\t%d \n", -cos(angle) / sin(angle), r / sin(angle), lines[i].first, lines[i].second);
+    // }
 
     /* 在边缘图上画出直线 */
     cimg_forXY(img, x, y) {
@@ -125,7 +125,7 @@ void houghLine::drawLines() {
       }
     }
   }
-  cout << "Hough lines Draw Done" << endl;
+  // cout << "Hough lines Draw Done" << endl;
   img.display("Hough lines Draw");
 }
 
@@ -155,13 +155,13 @@ void houghLine::detectPoints() {
       if ((int)x < 0 || (int)x > width - 1 || (int)y < 0 || (int)y > height - 1)
         continue;
 
-      cout << "x: " << (int)x << endl;
-      cout << "y: " << (int)y << endl;
+      // cout << "x: " << (int)x << endl;
+      // cout << "y: " << (int)y << endl;
       img.draw_circle((int)x, (int)y, 5, RED);
       points.push_back(make_pair((int)x, (int)y));
     }
   }
-  cout << "Hough Point Detect Done" << endl;
+  // cout << "Hough Point Detect Done" << endl;
   img.display("Hough Point Detect");
 }
 
