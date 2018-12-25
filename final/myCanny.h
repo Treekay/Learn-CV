@@ -3,6 +3,9 @@
 
 #include "CImg.h"
 #include <string>
+#include <iostream>
+#include <cmath>
+#include <queue>
 
 #define _USE_MATH_DEFINES
 

@@ -281,66 +281,24 @@ void ImgSegment::numberExpand() {
     cout << "Canny done\n";
     edgeImg.display("Number edge image");
 
-    CImg<double> SignMap(edgeImg.width(), edgeImg.height());
-    // 初始化标记图
-    // 该图用于标记边缘点是否访问过
-    cimg_forXY(SignMap, x, y) {
-        SignMap(x, y) = 0;
-    }
-
-    vector<vector<pair<int, int>>> Sets;
+    expandImg = edgeImg;
     cimg_forXY(edgeImg, x, y) {
-        if (edgeImg(x, y) == 255 && SignMap(x, y) == 0) {
-            int count = 0;
-            vector<pair<int, int>> PointSet;
-            queue<pair<int, int>> temp;
-
-            count++;
-            SignMap(x, y) = 1;
-            temp.push(make_pair(x, y));
-            PointSet.push_back(make_pair(x, y));
-            while (!temp.empty()) {
-                int nowX = temp.front().first;
-                int nowY = temp.front().second;
-                temp.pop();
-                for (int i = nowX - 1; i < nowX + 2; i++) {
-                    for (int j = nowY - 1; j < nowY + 2; j++) {
-                        // 搜索八邻域
-                        if (i >= 0 && i < edgeImg.width() && j >= 0 && j < edgeImg.height()) {
-                            if (edgeImg(i, j) == 255 && SignMap(i, j) == 0) {
-                                count++;
-                                SignMap(i, j) = 1;
-                                temp.push(make_pair(i, j));
-                                PointSet.push_back(make_pair(i, j));
-                            }
-                        }
-                    }
-                }
-            }
-            Sets.push_back(PointSet);
-        }
-    }
-    for (int k = 0; k < Sets.size(); k++) {
-        // 3*3 领域内膨胀
-        for (int t = 0; t < Sets[k].size(); t++) {
-            int tX = Sets[k][t].first;
-            int tY = Sets[k][t].second;
-            for (int i = tX - 1; i < tX + 2; i++) {
-                for (int j = tY - 1; j < tY + 2; j++) {
+        if (edgeImg(x, y) == 255) {
+             for (int i = x - 1; i < x + 2; i++) {
+                for (int j = y - 1; j < y + 2; j++) {
                     if (i >= 0 && i < edgeImg.width() && j >= 0 && j < edgeImg.height()) {
-                        edgeImg(i, j) = 255;
+                        expandImg(i, j) = 255;
                     }
                 }
-            }
+            } 
         }
     }
     cout << "Number expand done\n";
+    expandImg.display("Number expand image");
 }
 
 void ImgSegment::numberSegment() {
-    edgeImg.display("Number expand image");
-
-    CImg<double> SignMap(edgeImg.width(), edgeImg.height());
+    CImg<double> SignMap(expandImg.width(), expandImg.height());
     // 初始化标记图
     // 该图用于标记边缘点是否访问过
     cimg_forXY(SignMap, x, y) {
@@ -348,8 +306,8 @@ void ImgSegment::numberSegment() {
     }
 
     vector<pair<double, double>> posSet;
-    cimg_forXY(edgeImg, x, y) {
-        if (edgeImg(x, y) == 255 && SignMap(x, y) == 0) {
+    cimg_forXY(expandImg, x, y) {
+        if (expandImg(x, y) == 255 && SignMap(x, y) == 0) {
             int count = 0;
             vector<pair<int, int>> PointSet;
             queue<pair<int, int>> temp;
@@ -365,8 +323,8 @@ void ImgSegment::numberSegment() {
                 for (int i = nowX - 1; i < nowX + 2; i++) {
                     for (int j = nowY - 1; j < nowY + 2; j++) {
                         // 搜索八邻域
-                        if (i >= 0 && i < edgeImg.width() && j >= 0 && j < edgeImg.height()) {
-                            if (edgeImg(i, j) == 255 && SignMap(i, j) == 0) {
+                        if (i >= 0 && i < expandImg.width() && j >= 0 && j < expandImg.height()) {
+                            if (expandImg(i, j) == 255 && SignMap(i, j) == 0) {
                                 count++;
                                 SignMap(i, j) = 1;
                                 temp.push(make_pair(i, j));
@@ -378,7 +336,7 @@ void ImgSegment::numberSegment() {
             }
             if (count > 20) {
                 // 分割数字
-                int minX = edgeImg.width(), minY = edgeImg.height(), maxX = 0, maxY = 0;
+                int minX = expandImg.width(), minY = expandImg.height(), maxX = 0, maxY = 0;
                 for (int i = 0; i < PointSet.size(); i++) {
                     if (PointSet[i].first < minX) {
                         minX = PointSet[i].first;
@@ -398,11 +356,17 @@ void ImgSegment::numberSegment() {
                 int _height = maxY - minY;
                 CImg<double> _digitImg(_width + 6, _height + 6);
                 cimg_forXY(_digitImg, a, b) {
-                    if (minX + a - 3 < width && minY + b - 3 < height) {
-                        double R = resultImg(minX + a - 3, minY + b - 3, 0);
-                        double G = resultImg(minX + a - 3, minY + b - 3, 1);
-                        double B = resultImg(minX + a - 3, minY + b - 3, 2);
-                        _digitImg(a, b) = (R * 0.2126 + G * 0.7152 + B * 0.0722);
+                    if (minX + a - 3 < resultImg.width() && minY + b - 3 < resultImg.height()) {
+                        _digitImg(a, b) = expandImg(minX + a - 3, minY + b - 3);
+                        // if (expandImg(minX + a - 3, minY + b - 3) == 255) {
+                        //     double R = resultImg(minX + a - 3, minY + b - 3, 0);
+                        //     double G = resultImg(minX + a - 3, minY + b - 3, 1);
+                        //     double B = resultImg(minX + a - 3, minY + b - 3, 2);
+                        //     _digitImg(a, b) = (R * 0.2126 + G * 0.7152 + B * 0.0722);
+                        // }
+                        // else {
+                        //     _digitImg(a, b) = 0;
+                        // }
                     }
                 }
                 digitImgs.push_back(_digitImg);
@@ -435,10 +399,11 @@ void ImgSegment::numberStandard() {
             double v = y * (h / 28);
             stdImage(x, y) = digitImgs[i](u, v);
         }
-        stringstream ss;
-        ss << i;
-        string rr = "./tmp/" + ss.str() + ".bmp";
-        stdImage.save(rr.c_str());
+        stdImages.push_back(stdImage);
     }
     cout << "Number Standard done\n";
+}
+
+vector<CImg<double>> ImgSegment::getImages() {
+    return stdImages;
 }

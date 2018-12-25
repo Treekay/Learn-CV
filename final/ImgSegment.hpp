@@ -25,11 +25,13 @@ public:
     void numberExpand();                  // 膨胀
     void numberSegment();               // 切割数字
     void numberStandard();                // 规格化数字图片
+    vector<CImg<double>> getImages(); 
   
 private:
     CImg<double> sourceImg;         // 原图像
     CImg<double> clusterImg;        // 聚类图像
     CImg<double> edgeImg;           // 边缘图像
+    CImg<double> expandImg;         // 膨胀图像
     CImg<double> resultImg;         // 结果图像
     vector<pair<int, int>> points;               
     vector<pair<double, double>> sourcePoints;  // 原图像A4纸的四个角点
@@ -39,6 +41,7 @@ private:
     string resPath;         // 文件保存路径
 
     vector<CImg<double>> digitImgs;
+    vector<CImg<double>> stdImages;
 };
 
 #endif // !_IMGSEGMENTATION
