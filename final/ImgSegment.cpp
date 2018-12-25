@@ -11,12 +11,12 @@ ImgSegment::ImgSegment(string imgPath, string _resPath){
     width = sourceImg.width();
     height = sourceImg.height();
     // KMeans聚类
-    clustering();
-    edgeDetect();
-    edgeDelete(3000);
-    getPoints();
-    calHomography();
-    inverseProject();
+    // clustering();
+    // edgeDetect();
+    // edgeDelete(3000);
+    // getPoints();
+    // calHomography();
+    // inverseProject();
     numberExpand();
     numberSegment();
     numberStandard();
@@ -263,6 +263,10 @@ void ImgSegment::inverseProject() {
             resultImg(x, y, 0) = cimg::cut(value[0], 0, 255);
             resultImg(x, y, 1) = cimg::cut(value[1], 0, 255);
             resultImg(x, y, 2) = cimg::cut(value[2], 0, 255);
+        } else {
+            resultImg(x, y, 0) = 255;
+            resultImg(x, y, 1) = 255;
+            resultImg(x, y, 2) = 255;
         }
     }
     cout << "Image Segment done\n";
@@ -271,6 +275,7 @@ void ImgSegment::inverseProject() {
 }
 
 void ImgSegment::numberExpand() {
+    resultImg.load(resPath.c_str());
     edgeImg = canny(resultImg, 5, 1, 60, 20).edgeDelete(26, 500);
     cimg_forXY(edgeImg, x, y) {
         if (x - 0 < 10 || edgeImg.width() - x < 10 
@@ -284,13 +289,24 @@ void ImgSegment::numberExpand() {
     expandImg = edgeImg;
     cimg_forXY(edgeImg, x, y) {
         if (edgeImg(x, y) == 255) {
-             for (int i = x - 1; i < x + 2; i++) {
+            for (int i = x - 1; i < x + 2; i++) {
                 for (int j = y - 1; j < y + 2; j++) {
                     if (i >= 0 && i < edgeImg.width() && j >= 0 && j < edgeImg.height()) {
                         expandImg(i, j) = 255;
                     }
                 }
             } 
+        }
+    }
+    corrosImg = expandImg;
+    cimg_forXY(edgeImg, x, y) {
+        if (expandImg(x, y) == 255) {
+            if (!((x - 1 >= 0 && expandImg(x - 1, y) == 255 || x - 1 < 0) &&
+                (y - 1 >= 0 && expandImg(x, y - 1) == 255 || y - 1 < 0) && 
+                (x + 1 < edgeImg.width() && expandImg(x + 1, y) == 255 || x + 1 == edgeImg.width()) && 
+                (y + 1 < edgeImg.height() && expandImg(x, y + 1) == 255 || y + 1 == edgeImg.height()))) {
+                corrosImg(x, y) = 0;
+            }
         }
     }
     cout << "Number expand done\n";
@@ -358,15 +374,6 @@ void ImgSegment::numberSegment() {
                 cimg_forXY(_digitImg, a, b) {
                     if (minX + a - 3 < resultImg.width() && minY + b - 3 < resultImg.height()) {
                         _digitImg(a, b) = expandImg(minX + a - 3, minY + b - 3);
-                        // if (expandImg(minX + a - 3, minY + b - 3) == 255) {
-                        //     double R = resultImg(minX + a - 3, minY + b - 3, 0);
-                        //     double G = resultImg(minX + a - 3, minY + b - 3, 1);
-                        //     double B = resultImg(minX + a - 3, minY + b - 3, 2);
-                        //     _digitImg(a, b) = (R * 0.2126 + G * 0.7152 + B * 0.0722);
-                        // }
-                        // else {
-                        //     _digitImg(a, b) = 0;
-                        // }
                     }
                 }
                 digitImgs.push_back(_digitImg);
@@ -391,13 +398,40 @@ void ImgSegment::numberSegment() {
 // 规格化
 void ImgSegment::numberStandard() {
     for (int i = 0; i < digitImgs.size(); i++) {
+        int oldW = digitImgs[i].width();
+        int oldH = digitImgs[i].height();
+        int newLen = (oldW > oldH) ? oldW : oldH;
+        CImg<double> squareImg(newLen, newLen);
+        if (oldH == newLen) {
+            int offset = (newLen - oldW) / 2;
+            cimg_forXY(squareImg, x, y) {
+                int u = x - offset;
+                if (u < 0 || u >= oldW) {
+                    squareImg(x, y) = 0;
+                } else {
+                    squareImg(x, y) = digitImgs[i](u, y);
+                }
+            }
+        }
+        else {
+            int offset = (newLen - oldH) / 2;
+            cimg_forXY(squareImg, x, y) {
+                int v = y - offset;
+                if (v < 0 || v >= oldH) {
+                    squareImg(x, y) = 0;
+                } else {
+                    squareImg(x, y) = digitImgs[i](x, v);
+                }
+            }
+        }
+
         CImg<double> stdImage(28, 28);
-        double w = digitImgs[i].width();
-        double h = digitImgs[i].height();
+        double w = squareImg.width();
+        double h = squareImg.height();
         cimg_forXY(stdImage, x, y) {
             double u = x * (w / 28);
             double v = y * (h / 28);
-            stdImage(x, y) = digitImgs[i](u, v);
+            stdImage(x, y) = squareImg(u, v);
         }
         stdImages.push_back(stdImage);
     }
