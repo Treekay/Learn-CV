@@ -1,21 +1,24 @@
-#include "cstdio"
-
 #include "ImgSegment.cpp"
 #include "houghLine.cpp"
 #include "myCanny.cpp"
 
 int main(void) {
-    for (int i = 1; i < 11; i++) {
+    vector<string> files = getFiles("./src/*");
+    for (int i = 0; i < files.size(); i++) {
+        string fileName = files[i].substr(0, files[i].length() - 4);
+        string srcPath = "./src/" + fileName + ".bmp"; // 原图片路径
+        string resPath = "./tmp/" + fileName + ".bmp"; // A4纸矫正后的存放路径
+        // 创建文件夹保存分割后的数字
+        string command = "md .\\test\\" + fileName;
+        system(command.c_str());
+        // 分割数字
+        vector<CImg<double>> testImages = ImgSegment(srcPath, resPath, fileName).getImages();
         int count = 1;
-        char srcPath[50];
-        sprintf(srcPath, "./src/paper%d.bmp", i);
-        char resPath[50];
-        sprintf(resPath, "./res/peper%d.bmp", i);
-        vector<CImg<double>> testImages = ImgSegment(srcPath, resPath).getImages();
         for (int t = 1; t <= testImages.size(); t++) {
-            char testPath[50];
-            sprintf(testPath, "./test/%d/%d.bmp", i, count++);
-            testImages[t-1].save(testPath);
+            char no[20];
+            sprintf(no, "%d", count++);
+            string testPath = "./test/" + fileName + "/" + no + ".bmp";
+            testImages[t-1].save(testPath.c_str());
         }
     }
 }

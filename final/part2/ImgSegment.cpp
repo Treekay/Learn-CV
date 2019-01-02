@@ -4,19 +4,21 @@
 #include "myCanny.h"
 #include "houghLine.h"
 
-ImgSegment::ImgSegment(string imgPath, string _resPath){
+ImgSegment::ImgSegment(string imgPath, string _resPath, string _fileName){
     resPath = _resPath;
+    fileName = _fileName;
     // 读取图片
     sourceImg.load(imgPath.c_str());
     width = sourceImg.width();
     height = sourceImg.height();
     // KMeans聚类
-    // clustering();
-    // edgeDetect();
-    // edgeDelete(3000);
-    // getPoints();
-    // calHomography();
-    // inverseProject();
+    clustering();
+    edgeDetect();
+    edgeDelete(3000);
+    getPoints();
+    calHomography();
+    inverseProject();
+    numberEdge();
     numberExpand();
     numberSegment();
     numberStandard();
@@ -40,7 +42,8 @@ CImg<double> ImgSegment::gaussianFilter() {
 */
 void ImgSegment::clustering() {
     clusterImg = KMeans(gaussianFilter()).getCluster();
-    clusterImg.display("Cluster Img");
+    cout << "KMeans cluster done\n";
+    // clusterImg.display("Cluster Img");
 }
 
 /*
@@ -129,7 +132,7 @@ void ImgSegment::edgeDelete(int len) {
         }
     }
     cout << "Edge detect done\n";
-    edgeImg.display("edgeImage");
+    // edgeImg.display("edgeImage");
 }
 
 // 用霍夫变换进行直线检测并找出角点
@@ -158,7 +161,7 @@ void ImgSegment::getPoints() {
     }
     int paperWidth = dist[0];
     int paperHeight = dist[1];
-    resultImg = CImg<double>(paperWidth, paperHeight, 1, 3);
+    segmentImg = CImg<double>(paperWidth, paperHeight, 1, 3);
     
     // sort Points
     for (int i = 0; i < 4; i++) {
@@ -168,6 +171,16 @@ void ImgSegment::getPoints() {
     targetPoints.push_back(make_pair(paperWidth, 0));
     targetPoints.push_back(make_pair(0, paperHeight));
     targetPoints.push_back(make_pair(paperWidth, paperHeight));
+    // 保存角点数据
+    ofstream ofile;
+    string savePath = "./tmp/" + fileName + ".txt";
+    ofile.open(savePath.c_str(), ios::out);
+    for (int i = 0; i < sourcePoints.size(); i++) {
+        char data[50];
+        sprintf(data, "(%.0lf, %.0lf)", sourcePoints[i].first, sourcePoints[i].second);
+        ofile << data << endl;
+    }
+    ofile.close();
     cout << "Hough transform done\n";
 }
 
@@ -176,11 +189,6 @@ void ImgSegment::getPoints() {
     根据矫正图像每一点的像素求得在原图像的位置并求插值
 */
 void ImgSegment::calHomography() {
-    // debug
-    for (int i = 0; i < sourcePoints.size(); i++) {
-        cout << "Point: " << sourcePoints[i].first << " " << sourcePoints[i].second << endl;
-        cout << "Point: " << targetPoints[i].first << " " << targetPoints[i].second << endl;
-    }
     // cal Homography
     double uv[8] = { sourcePoints[0].first, sourcePoints[0].second,
         sourcePoints[1].first, sourcePoints[1].second,
@@ -214,19 +222,14 @@ void ImgSegment::calHomography() {
         }
         H[i] = sum;
     }
-
-    for (int i = 0; i < 8; i++) {
-        cout << H[i] << " ";
-    }
-    cout << endl;
 }
 
 // 双线性插值获得矫正图像
 void ImgSegment::inverseProject() {
-    cimg_forXY(resultImg, x, y) {
-        resultImg(x, y, 0) = 0;
-        resultImg(x, y, 1) = 0;
-        resultImg(x, y, 2) = 0;
+    cimg_forXY(segmentImg, x, y) {
+        segmentImg(x, y, 0) = 0;
+        segmentImg(x, y, 1) = 0;
+        segmentImg(x, y, 2) = 0;
         // 根据逆变换矩阵求出矫正图像上的像素点在原图对应的位置
         double px = H[0] * x + H[1] * y + H[2] * 1;
         double py = H[3] * x + H[4] * y + H[5] * 1;
@@ -257,23 +260,23 @@ void ImgSegment::inverseProject() {
                 sourceImg( floor(u), floor(v) + 1, 2) * weightLeft * weightDown +
                 sourceImg( floor(u) + 1, floor(v) + 1, 2) * weightRight * weightDown
             };
-            resultImg(x, y, 0) = cimg::cut(value[0], 0, 255);
-            resultImg(x, y, 1) = cimg::cut(value[1], 0, 255);
-            resultImg(x, y, 2) = cimg::cut(value[2], 0, 255);
+            segmentImg(x, y, 0) = cimg::cut(value[0], 0, 255);
+            segmentImg(x, y, 1) = cimg::cut(value[1], 0, 255);
+            segmentImg(x, y, 2) = cimg::cut(value[2], 0, 255);
         } else {
-            resultImg(x, y, 0) = 255;
-            resultImg(x, y, 1) = 255;
-            resultImg(x, y, 2) = 255;
+            segmentImg(x, y, 0) = 255;
+            segmentImg(x, y, 1) = 255;
+            segmentImg(x, y, 2) = 255;
         }
     }
     cout << "Image Segment done\n";
-    resultImg.display("resultImg");
-    resultImg.save(resPath.c_str());
+    segmentImg.display("SegmentImg");
+    segmentImg.save(resPath.c_str());
 }
 
-void ImgSegment::numberExpand() {
-    resultImg.load(resPath.c_str());
-    edgeImg = canny(resultImg, 5, 1, 60, 20).edgeDelete(26, 500);
+void ImgSegment::numberEdge() {
+    segmentImg.load(resPath.c_str());
+    edgeImg = canny(segmentImg, 5, 1, 60, 20).edgeDelete(26, 500);
     cimg_forXY(edgeImg, x, y) {
         if (x - 0 < 10 || edgeImg.width() - x < 10 
         || edgeImg.height() - y < 10 || y - 0 < 10) {
@@ -281,17 +284,53 @@ void ImgSegment::numberExpand() {
         }
     }
     cout << "Canny done\n";
-    edgeImg.display("Number edge image");
+    // edgeImg.display("Number edge image");
+}
 
+void ImgSegment::numberExpand() {
     expandImg = edgeImg;
-    cimg_forXY(expandImg, x, y) {
-        if (edgeImg(x, y) == 0) {
+    expandImg = Expand8(expandImg);
+    // expandImg = Expand4(expandImg);
+    // expandImg = Corros8(expandImg);
+    cout << "Number expand done\n";
+    expandImg.display("Number expand image");
+}
+
+CImg<double> ImgSegment::Expand4(CImg<double> inputImg) {
+    CImg<double> outputImg = inputImg;
+    cimg_forXY(outputImg, x, y) {
+        if (inputImg(x, y) == 0) {
+            int count = 0;
+            if (x - 1 >= 0 && inputImg(x - 1, y) == 255) {
+                count++;
+            }
+            if (x + 1 < inputImg.width() && inputImg(x + 1, y) == 255) {
+                count++;
+            }
+            if (y - 1 >= 0 && inputImg(x, y - 1) == 255) {
+                count++;
+            }
+            if (y + 1 < inputImg.height() && inputImg(x, y + 1) == 255) {
+                count++;
+            }
+            if (count > 1) {
+                outputImg(x, y) = 255;
+            }
+        }
+    }
+    return outputImg;
+}
+
+CImg<double> ImgSegment::Expand8(CImg<double> inputImg) {
+    CImg<double> outputImg = inputImg;
+    cimg_forXY(outputImg, x, y) {
+        if (inputImg(x, y) == 0) {
             bool find = false;
             for (int i = x - 1; i < x + 2; i++) {
                 for (int j = y - 1; j < y + 2; j++) {
-                    if (i >= 0 && i < edgeImg.width() && j >= 0 && j < edgeImg.height()) {
-                        if (edgeImg(i, j) == 255) {
-                            expandImg(x, y) = 255;
+                    if (i >= 0 && i < inputImg.width() && j >= 0 && j < inputImg.height()) {
+                        if (inputImg(i, j) == 255) {
+                            outputImg(x, y) = 255;
                             find = true;
                             break;
                         }
@@ -301,8 +340,29 @@ void ImgSegment::numberExpand() {
             }
         }
     }
-    cout << "Number expand done\n";
-    expandImg.display("Number expand image");
+    return outputImg;
+}
+
+CImg<double> ImgSegment::Corros8(CImg<double> inputImg) {
+    CImg<double> outputImg = inputImg;
+    cimg_forXY(outputImg, x, y) {
+        if (inputImg(x, y) == 255) {
+            bool find = false;
+            for (int i = x - 1; i < x + 2; i++) {
+                for (int j = y - 1; j < y + 2; j++) {
+                    if (i >= 0 && i < inputImg.width() && j >= 0 && j < inputImg.height()) {
+                        if (inputImg(i, j) == 0) {
+                            outputImg(x, y) = 0;
+                            find = true;
+                            break;
+                        }
+                    }
+                }
+                if (find) break;
+            }
+        }
+    }
+    return outputImg;
 }
 
 void ImgSegment::numberSegment() {
@@ -364,7 +424,7 @@ void ImgSegment::numberSegment() {
                 int _height = maxY - minY;
                 CImg<double> _digitImg(_width + 6, _height + 6);
                 cimg_forXY(_digitImg, a, b) {
-                    if (minX + a - 3 < resultImg.width() && minY + b - 3 < resultImg.height()) {
+                    if (minX + a - 3 < segmentImg.width() && minY + b - 3 < segmentImg.height()) {
                         _digitImg(a, b) = expandImg(minX + a - 3, minY + b - 3);
                     }
                 }

@@ -2,6 +2,13 @@
 #define _UTILS_H_
 
 #include <iostream>
+#include <direct.h>
+#include <io.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <algorithm>
+#include <vector>
 using namespace std;
 #define N 8    //测试矩阵维数定义
 
@@ -76,5 +83,28 @@ bool GetMatrixInverse(double src[N][N], int n, double des[N][N]) {
 
     return true;
 }
+
+vector<string> getFiles(string cate_dir) {
+	vector<string> files;//存放文件名
+	_finddata_t file;
+	long lf;
+	//输入文件夹路径
+	if ((lf = _findfirst(cate_dir.c_str(), &file)) == -1) {
+		cout<< cate_dir << " not found!!!" << endl;
+	} else {
+		while(_findnext(lf, &file) == 0) {
+			//输出文件名
+			if (strcmp(file.name, ".") == 0 || strcmp(file.name, "..") == 0)
+				continue;
+			files.push_back(file.name);
+		}
+	}
+	_findclose(lf);
+ 
+	//排序，按从小到大排序
+	sort(files.begin(), files.end());
+	return files;
+}
+
 
 #endif // !_UTILS_H_

@@ -100,7 +100,7 @@ void houghLine::getMaxHough(int Xsize, int Ysize, int thresh) {
  */
 void houghLine::drawLines() {
   /* 画出投票数较高的直线 */
-  cout << "The Line Equation: " << endl;
+  // cout << "The Line Equation: " << endl;
   for (int i = 0; i < lines.size(); i++) {
     double angle = M_PI * (lines[i].first - theta / 2) / 180;
     double r = lines[i].second - rho / 2;
@@ -125,8 +125,8 @@ void houghLine::drawLines() {
       }
     }
   }
-  // cout << "Hough lines Draw Done" << endl;
-  img.display("Hough lines Draw");
+  cout << "Hough lines Draw Done" << endl;
+  // img.display("Hough lines Draw");
 }
 
 /* 
@@ -161,7 +161,7 @@ void houghLine::detectPoints() {
       points.push_back(make_pair((int)x, (int)y));
     }
   }
-  // cout << "Hough Point Detect Done" << endl;
+  cout << "Hough Point Detect Done" << endl;
   img.display("Hough Point Detect");
 }
 
