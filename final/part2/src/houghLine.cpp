@@ -75,8 +75,8 @@ void houghLine::getMaxHough(int Xsize, int Ysize, int thresh) {
     for (int y = 0; y < rho; y += Ysize) {
       pair<int, int> max = make_pair(x, y);
       // 确定搜索范围
-      int i_max = (x + Xsize < theta) ? (x + Xsize ) : theta;
-      int j_max = (y + Ysize < rho) ? (y + Ysize ) : rho;
+      int i_max = (x + Xsize < theta) ? (x + Xsize) : theta;
+      int j_max = (y + Ysize < rho) ? (y + Ysize) : rho;
       // 寻找最大值
       for (int i = x; i < i_max; i++) {
         for (int j = y; j < j_max; j++) {
@@ -85,9 +85,28 @@ void houghLine::getMaxHough(int Xsize, int Ysize, int thresh) {
           }
         }
       }
+      if (x + Xsize >= theta) {
+        i_max = x + Xsize - theta;
+        for (int i = 0; i < i_max; i++) {
+          for (int j = y; j < j_max; j++) {
+            if (houghImg(i, j) > houghImg(max.first, max.second)) {
+              max = make_pair(i, j);
+            }
+          }
+        }
+      }
       // 若最大值大于给定阈值则保存用于画线
       if (houghImg(max.first, max.second) > thresh) {
-        lines.push_back(make_pair(max.first, max.second));
+        bool find = false;
+        for (int t = 0; t < lines.size(); t++) {
+          if (lines[t].first == max.first && lines[t].second == max.second) {
+            find = true;
+            break;
+          }
+        }
+        if (!find) {
+          lines.push_back(make_pair(max.first, max.second));
+        }
       }
     }
   }

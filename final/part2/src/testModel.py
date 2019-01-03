@@ -17,13 +17,13 @@ TEST_PAHT = '../test/'
 TMP_PATH = '../temp/'
 TRAIN_MODEL_PATH = './model.m'
 
-
 if __name__ == "__main__":
-    test_lbl = []
+    test_lbl = {}
     csv_reader = csv.reader(open('../labels.csv'))
     for row in csv_reader:
-        test_lbl.append(row)
-    test_lbl = np.array(test_lbl)
+        test_lbl[row[0]] = row[0] + row[1] + row[2]
+        print(test_lbl[row[0]])
+    
     # 读取模型
     clf = joblib.load(TRAIN_MODEL_PATH)
 
@@ -67,7 +67,7 @@ if __name__ == "__main__":
             # 用模型识别
             test_predict = clf.predict(img)[0]
             # 是否判断错误
-            if test_predict != test_lbl[current][i]:
+            if test_predict != test_lbl[str(folder)][i]:
                 errorCount += 1
             data += str(test_predict)
             count += 1

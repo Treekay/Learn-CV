@@ -139,6 +139,13 @@ void ImgSegment::edgeDelete(int len) {
 
 // 用霍夫变换进行直线检测并找出角点
 void ImgSegment::getPoints() {
+    // int a, b, c;
+    // cout << "Xsize: ";
+    // cin >> a;//39
+    // cout << "Ysize: ";
+    // cin >> b;//499
+    // cout << "thresh: ";
+    // cin >> c;//320
     points = houghLine(edgeImg, 39, 499, 320, resPath).getPoints();
     double dist[3] = {0};
     // 将曼哈顿距离最小的点作为起点
@@ -277,7 +284,7 @@ void ImgSegment::inverseProject() {
 }
 
 void ImgSegment::numberEdge() {
-    edgeImg = canny(segmentImg, 5, 1, 60, 20).edgeDelete(26, 500);
+    edgeImg = canny(segmentImg, 5, 1, 60, 20).edgeDelete(26, 600);
     cimg_forXY(edgeImg, x, y) {
         if (x - 0 < 10 || edgeImg.width() - x < 10 
         || edgeImg.height() - y < 10 || y - 0 < 10) {
