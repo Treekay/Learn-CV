@@ -182,7 +182,7 @@ void ImgSegment::getPoints() {
     targetPoints.push_back(make_pair(paperWidth, paperHeight));
     // 保存角点数据
     ofstream ofile;
-    string savePath = "../tmp/" + fileName + "/" + fileName + ".txt";
+    string savePath = "../temp/" + fileName + "/" + fileName + ".txt";
     ofile.open(savePath.c_str(), ios::out);
     for (int i = 0; i < sourcePoints.size(); i++) {
         char data[50];

@@ -71,6 +71,7 @@ void houghLine::houghVote(int x, int y) {
   若该点投票数高于给定阈值, 则认为该点对应的参数可以作为检测到的直线参数
  */
 void houghLine::getMaxHough(int Xsize, int Ysize, int thresh) {
+  vector<pair<int, int>> tempLines;
   for (int x = 0; x < theta; x += Xsize) {
     for (int y = 0; y < rho; y += Ysize) {
       pair<int, int> max = make_pair(x, y);
@@ -85,32 +86,61 @@ void houghLine::getMaxHough(int Xsize, int Ysize, int thresh) {
           }
         }
       }
-      if (x + Xsize >= theta) {
-        i_max = x + Xsize - theta;
-        for (int i = 0; i < i_max; i++) {
-          for (int j = y; j < j_max; j++) {
-            if (houghImg(i, j) > houghImg(max.first, max.second)) {
-              max = make_pair(i, j);
-            }
-          }
-        }
-      }
       // 若最大值大于给定阈值则保存用于画线
       if (houghImg(max.first, max.second) > thresh) {
-        bool find = false;
-        for (int t = 0; t < lines.size(); t++) {
-          if (lines[t].first == max.first && lines[t].second == max.second) {
-            find = true;
-            break;
-          }
-        }
-        if (!find) {
-          lines.push_back(make_pair(max.first, max.second));
-        }
+        tempLines.push_back(make_pair(max.first, max.second));
       }
     }
   }
-  // cout << "Get Max Hough Done" << endl;
+  if (tempLines.size() != 4) {
+    vector<bool> signLines;
+    for (int i = 0; i < tempLines.size(); i++) {
+      signLines.push_back(false);
+    }
+    for (int i = 0; i < tempLines.size(); i++) {
+      if (signLines[i] == false) {
+        signLines[i] = true;
+        vector<int> matchLines;
+        matchLines.push_back(i);
+        for (int j = i + 1; j < tempLines.size(); j++) {
+          if (signLines[j] == false) {
+            if (abs(tempLines[i].first - tempLines[j].first) < 60 || abs(tempLines[i].first - tempLines[j].first) > 120) {
+              matchLines.push_back(j);
+              signLines[j] = true;
+            }
+          }
+        }
+        if (matchLines.size() > 2) {
+          int minDist = rho;
+          int maxDist = 0;
+          int minLine = 0;
+          int maxLine = 0;
+          for (int t = 0; t < matchLines.size(); t++) {
+            int dist = abs(tempLines[matchLines[t]].second - rho / 2);
+            if (dist < minDist) {
+              minDist = dist;
+              minLine = t;
+            }
+            if (dist > maxDist) {
+              maxDist = dist;
+              maxLine = t;
+            }
+          }
+          lines.push_back(tempLines[matchLines[minLine]]);
+          lines.push_back(tempLines[matchLines[maxLine]]);
+        } else {
+          for (int i = 0; i < matchLines.size(); i++) {
+            lines.push_back(tempLines[matchLines[i]]);
+          }
+        }
+      }
+    }
+  } else {
+    for (int i = 0; i < 4; i++) {
+      lines.push_back(tempLines[i]);
+    }
+  }
+  cout << "Get Max Hough Done" << endl;
 }
 
 /* 
