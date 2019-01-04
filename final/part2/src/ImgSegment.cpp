@@ -383,6 +383,7 @@ void ImgSegment::numberSegment() {
         SignMap(x, y) = 0;
     }
 
+    double sumHeight = 0;
     vector<pair<double, double>> posSet;
     cimg_forXY(expandImg, x, y) {
         if (expandImg(x, y) == 255 && SignMap(x, y) == 0) {
@@ -432,6 +433,7 @@ void ImgSegment::numberSegment() {
                 // 生成数字子图像
                 int _width = maxX - minX;
                 int _height = maxY - minY;
+                sumHeight += _height;
                 CImg<double> _digitImg(_width + 6, _height + 6);
                 cimg_forXY(_digitImg, a, b) {
                     if (minX + a - 3 < segmentImg.width() && minY + b - 3 < segmentImg.height()) {
@@ -443,14 +445,23 @@ void ImgSegment::numberSegment() {
             }
         }
     }
+    // 计算数字平均高度
+    sumHeight = sumHeight / posSet.size();
     // sort 
     for (int i = 0; i < posSet.size(); i++) {
         for (int j = i + 1; j < posSet.size(); j++) {
-            if (posSet[i].second - posSet[j].second > 25 || 
-                abs(posSet[i].second - posSet[j].second) < 25 && posSet[j].first < posSet[i].first) {
+            if (posSet[i].second - posSet[j].second > sumHeight || 
+                abs(posSet[i].second - posSet[j].second) < sumHeight && posSet[j].first < posSet[i].first) {
                 swap(posSet[i], posSet[j]);
                 swap(digitImgs[i], digitImgs[j]);
             }
+        }
+    }
+    while(1) {
+        if (abs(posSet[posSet.size() - 1].second - posSet[posSet.size() - 2].second) > sumHeight) {
+            posSet.pop_back();
+        } else {
+            break;
         }
     }
     cout << "Number segment done\n";

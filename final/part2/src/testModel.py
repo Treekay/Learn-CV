@@ -13,7 +13,7 @@ from sklearn.metrics import accuracy_score
 from sklearn.tree import DecisionTreeClassifier
 from sklearn.externals import joblib
 
-TEST_PAHT = '../test/'
+TEST_PAHT = '../other/'
 TMP_PATH = '../temp/'
 TRAIN_MODEL_PATH = './model.m'
 
